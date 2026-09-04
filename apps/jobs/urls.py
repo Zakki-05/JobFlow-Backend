@@ -1,7 +1,8 @@
 from django.urls import path
 from .views import (
     JobListCreateView, JobDetailView, JobAnalyzerExtractView,
-    JobMatchCalculateView, SuitableJobsListView, ImportSuitableJobView
+    JobMatchCalculateView, SuitableJobsListView, ImportSuitableJobView,
+    AIJobMatchView, AIJobRecommendationsView, AICareerAssistantView
 )
 
 urlpatterns = [
@@ -11,4 +12,7 @@ urlpatterns = [
     path('match-score/', JobMatchCalculateView.as_view(), name='job_match_score'),
     path('suitable-jobs/', SuitableJobsListView.as_view(), name='suitable_jobs_list'),
     path('import-job/', ImportSuitableJobView.as_view(), name='import_suitable_job'),
+    path('ai-match/', AIJobMatchView.as_view(), name='job_ai_match'),
+    path('ai-recommendations/', AIJobRecommendationsView.as_view(), name='job_ai_recommendations'),
+    path('ai-assistant/', AICareerAssistantView.as_view(), name='job_ai_assistant'),
 ]

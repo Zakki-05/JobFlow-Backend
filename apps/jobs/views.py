@@ -351,3 +351,76 @@ class ImportSuitableJobView(APIView):
             'message': f"'{job.title}' at {job.company} imported to your Job Board!",
             'job_id': job.id
         }, status=status.HTTP_201_CREATED)
+
+class AIJobMatchView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .ai_service import calculate_ai_job_match
+        from apps.resumes.models import Resume
+        
+        job_data = request.data.get('job_data', request.data)
+        
+        # Grab user resume text
+        user_resume = Resume.objects.filter(user=request.user, is_default=True).first() or Resume.objects.filter(user=request.user).first()
+        if user_resume:
+            resume_text = f"{user_resume.summary}\nSkills: {user_resume.skills_summary}\nExperience: {user_resume.experience_data}"
+        else:
+            profile = getattr(request.user, 'profile', None)
+            user_skills = UserSkill.objects.filter(user=request.user).select_related('skill')
+            skills_str = ", ".join([us.skill.name for us in user_skills])
+            resume_text = f"{profile.headline if profile else ''}\nSkills: {skills_str}"
+
+        result = calculate_ai_job_match(resume_text, job_data)
+        return Response(result, status=status.HTTP_200_OK)
+
+class AIJobRecommendationsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .ai_service import calculate_ai_job_match
+        from apps.resumes.models import Resume
+
+        user = request.user
+        user_skills = UserSkill.objects.filter(user=user).select_related('skill')
+        user_skills_set = {us.skill.name.lower() for us in user_skills}
+        
+        user_resume = Resume.objects.filter(user=user, is_default=True).first() or Resume.objects.filter(user=user).first()
+        resume_text = f"{user_resume.summary}\nSkills: {user_resume.skills_summary}" if user_resume else ", ".join(user_skills_set)
+
+        recommendations = []
+        for job in SUITABLE_JOBS_CATALOG:
+            match_res = calculate_ai_job_match(resume_text, job)
+            rec_obj = dict(job)
+            rec_obj['match_percentage'] = match_res['match_percentage']
+            rec_obj['matching_skills'] = match_res['matching_skills']
+            rec_obj['missing_skills'] = match_res['missing_skills']
+            rec_obj['ai_recommendation'] = match_res['recommendation']
+            recommendations.append(rec_obj)
+
+        recommendations.sort(key=lambda x: x['match_percentage'], reverse=True)
+        return Response({'recommendations': recommendations[:6]}, status=status.HTTP_200_OK)
+
+class AICareerAssistantView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .ai_service import generate_ai_career_assistant_response
+        from apps.resumes.models import Resume
+
+        messages = request.data.get('messages', [])
+        job_context = request.data.get('job_context', None)
+        
+        profile = getattr(request.user, 'profile', None)
+        user_resume = Resume.objects.filter(user=request.user, is_default=True).first()
+        
+        user_context = {
+            "username": request.user.username,
+            "target_role": profile.target_role if profile else "Software Engineer",
+            "experience_years": profile.experience_years if profile else 1.0,
+            "resume_summary": user_resume.summary if user_resume else ""
+        }
+
+        ai_reply = generate_ai_career_assistant_response(messages, user_context=user_context, job_context=job_context)
+        return Response({'reply': ai_reply}, status=status.HTTP_200_OK)
+
