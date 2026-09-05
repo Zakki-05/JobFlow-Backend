@@ -1,4 +1,4 @@
-from rest_framework import serializers
+from rest_framework import serializers, exceptions
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.models import User
 from .models import Profile
@@ -37,7 +37,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         try:
             return super().validate(attrs)
-        except serializers.ValidationError:
+        except (serializers.ValidationError, exceptions.AuthenticationFailed, exceptions.APIException):
             raise serializers.ValidationError({
                 "detail": f"Incorrect password for '{user_obj.username}'. Please try again or use 'Forgot Password' to reset it."
             })
