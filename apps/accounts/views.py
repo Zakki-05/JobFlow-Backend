@@ -18,7 +18,10 @@ class CurrentUserProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        user = request.user
+        if not hasattr(user, 'profile') or user.profile is None:
+            Profile.objects.get_or_create(user=user)
+        serializer = UserSerializer(user)
         return Response(serializer.data)
 
     def put(self, request):
