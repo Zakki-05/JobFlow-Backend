@@ -77,3 +77,27 @@ class HealthCheckView(APIView):
             'service': 'JobFlow Intelligence Platform API',
             'version': '1.0.0'
         }, status=status.HTTP_200_OK)
+
+class AdminPasswordResetView(APIView):
+    """One-time admin utility to reset a user's password. Requires the admin reset key."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        import os
+        reset_key = os.getenv('ADMIN_RESET_KEY', 'jobflow-initial-setup-2026')
+        provided_key = request.data.get('admin_key', '')
+        username = request.data.get('username', '')
+        new_password = request.data.get('new_password', '')
+
+        if provided_key != reset_key:
+            return Response({'detail': 'Invalid admin key.'}, status=status.HTTP_403_FORBIDDEN)
+        if not username or not new_password:
+            return Response({'detail': 'Username and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(username=username)
+            user.set_password(new_password)
+            user.save()
+            return Response({'detail': f'Password for {username} has been reset successfully.'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
