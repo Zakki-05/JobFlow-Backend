@@ -101,3 +101,31 @@ class AdminPasswordResetView(APIView):
             return Response({'detail': f'Password for {username} has been reset successfully.'}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class PasswordResetView(APIView):
+    """User-facing view to reset password for a known username or email."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        raw_identifier = (request.data.get('username_or_email') or request.data.get('username') or '').strip()
+        new_password = request.data.get('new_password', '').strip()
+
+        if not raw_identifier:
+            return Response({'detail': 'Please provide your username or email address.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not new_password or len(new_password) < 8:
+            return Response({'detail': 'New password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(username__iexact=raw_identifier).first()
+        if not user and '@' in raw_identifier:
+            user = User.objects.filter(email__iexact=raw_identifier).first()
+
+        if not user:
+            return Response({'detail': f"No account found matching '{raw_identifier}'."}, status=status.HTTP_404_NOT_FOUND)
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({
+            'detail': f'Password for account "{user.username}" has been successfully updated. You can now sign in.',
+            'username': user.username
+        }, status=status.HTTP_200_OK)
